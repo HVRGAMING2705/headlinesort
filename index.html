@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="google-site-verification" content="5EchCsH88JXnn0Mc55I8joYV6mial9rsc4G8c0eg4Ls" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HeadlineSort: AI News Headline Classifier</title>
+<meta name="description" content="HeadlineSort is an AI news headline topic classifier. Type any headline and a real TF-IDF + Naive Bayes model trained on 200 headlines (sports, technology, business, politics, entertainment) predicts its category, all in your browser.">
+<link rel="canonical" href="https://headlinesort.vercel.app/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="HeadlineSort: AI News Headline Classifier">
+<meta property="og:description" content="Type any headline — a real TF-IDF + Naive Bayes classifier (76.5% 5-fold CV accuracy) predicts sports, technology, business, politics or entertainment. 100% in the browser.">
+<meta property="og:url" content="https://headlinesort.vercel.app/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="HeadlineSort: AI News Headline Classifier">
+<meta name="twitter:description" content="Real TF-IDF + Naive Bayes headline classifier (76.5% CV accuracy, 5 classes), running 100% in the browser.">
+<meta name="robots" content="index, follow">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication",
+"name":"HeadlineSort","applicationCategory":"EducationalApplication",
+"operatingSystem":"Web","description":"News headline topic classifier (TF-IDF + Multinomial Naive Bayes) running entirely in the browser.",
+"author":{"@type":"Person","name":"Vikranth Reddy"}}
+</script>
+<style>
+  :root { --ink:#111; --muted:#555; --line:#e5e5e5; --bg:#ffffff; --card:#fafafa; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); margin:0; line-height:1.6; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:28px; }
+  h1 { font-size:2rem; margin:0 0 4px; letter-spacing:-0.5px; }
+  .tag { color:var(--muted); margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; margin:18px 0; }
+  button { background:var(--ink); color:#fff; border:0; border-radius:8px; padding:12px 26px;
+           font-size:1rem; cursor:pointer; margin-top:12px; }
+  button:hover { background:#333; }
+  button.ghost { background:#fff; color:var(--ink); border:1px solid var(--line);
+                 padding:8px 14px; font-size:.9rem; margin:6px 6px 0 0; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  textarea { width:100%; padding:11px 14px; font-size:1rem; border:1px solid var(--line);
+             border-radius:8px; margin-top:8px; min-height:84px; resize:vertical;
+             font-family:inherit; }
+  .prow { display:flex; align-items:center; gap:8px; margin:8px 0 2px; font-size:.92rem; }
+  .prow .lbl { width:110px; text-transform:capitalize; }
+  .prow .barw { flex:1; height:12px; background:#eee; border-radius:6px; overflow:hidden; }
+  .prow .fill { height:100%; width:0%; background:var(--ink); transition:width .3s; }
+  .prow .p { width:56px; text-align:right; color:var(--muted); }
+  .pred { font-size:1.5rem; font-weight:700; margin:4px 0 10px; text-transform:capitalize; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:600px){ .grid{grid-template-columns:1fr;} }
+  h2 { font-size:1.3rem; margin:28px 0 8px; }
+  code { background:#f0f0f0; padding:2px 6px; border-radius:4px; font-size:.9em; }
+  footer { border-top:1px solid var(--line); margin-top:40px; padding-top:16px;
+           color:var(--muted); font-size:.9rem; }
+  a { color:var(--ink); }
+  .hint { font-size:.85rem; color:var(--muted); margin-top:8px; }
+  .samples { margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>HeadlineSort</h1>
+  <p class="tag">AI news headline classifier, by Vikranth Reddy</p>
+</header>
+
+<section class="card">
+  <h2 style="margin-top:0">What is this headline about?</h2>
+  <p>Paste a news headline. HeadlineSort vectorizes it with <b>TF-IDF</b> (word unigrams, sublinear TF, L2 norm, 914-feature vocabulary) and a <b>Multinomial Naive Bayes</b> model — trained on 200 hand-written headlines — outputs <b>predict_proba</b> for the 5 classes, all in your browser. No backend, no API calls.</p>
+  <textarea id="hl" placeholder="Type or paste a headline… e.g. Champions League final decided by dramatic late goal"></textarea>
+  <div>
+    <button id="go">Classify headline</button>
+  </div>
+  <div class="samples">
+    <button class="ghost" data-h="Championship final decided by penalty shootout thriller">⚽ sports sample</button>
+    <button class="ghost" data-h="Startup unveils AI chip twice as fast as rival">💻 tech sample</button>
+    <button class="ghost" data-h="Central bank raises interest rates as inflation climbs">💰 business sample</button>
+    <button class="ghost" data-h="Parliament votes on new climate bill tonight">🏛️ politics sample</button>
+    <button class="ghost" data-h="Blockbuster sequel shatters box office records">🎬 entertainment sample</button>
+  </div>
+  <div class="hint">The JS demo reproduces sklearn's probabilities to 1e-15 — it IS the trained model.</div>
+</section>
+
+<section id="results" style="display:none">
+  <h2>Prediction</h2>
+  <div class="card">
+    <div class="pred" id="pred">—</div>
+    <div id="bars"></div>
+  </div>
+</section>
+
+<section>
+  <h2>How it works</h2>
+  <div class="grid">
+    <div class="card"><b>1. Dataset</b><br>200 hand-written, realistic headlines: 40 each for sports, technology, business, politics and entertainment.</div>
+    <div class="card"><b>2. Features</b><br>TF-IDF over word unigrams: lowercase, tokens ≥ 2 chars, sublinear TF (1 + log tf), smooth IDF, L2-normalized, top 1000 features (914 in practice).</div>
+    <div class="card"><b>3. Model</b><br>Multinomial Naive Bayes. Joint log-likelihood = class log-prior + tfidf · feature log-probs, then softmax → per-class probabilities.</div>
+    <div class="card"><b>4. Evaluated</b><br>Stratified 5-fold cross-validation: <b>76.5%</b> accuracy (vs 20.0% random baseline, 3.8×). Train accuracy 100.0%.</div>
+  </div>
+  <h2>Tech stack</h2>
+  <p>Python · scikit-learn · vanilla JavaScript · static hosting (Vercel)</p>
+  <h2>Files in this repo</h2>
+  <p><code>train.py</code>: 200-headline dataset, TF-IDF + Naive Bayes, 5-fold CV, model.json export (+ JS parity check) · <code>model.json</code>: 914-term vocabulary, IDF, class log-priors, feature log-probs · <code>index.html</code>: this demo · <code>vercel.json</code>: security headers</p>
+</section>
+
+<footer>
+  Built by <a href="https://github.com/HVRGAMING2705">Vikranth Reddy</a> · B.Tech CSE (AI &amp; ML), Woxsen University ·
+  <a href="https://github.com/HVRGAMING2705/headlinesort">GitHub repo</a>
+</footer>
+</div>
+
+<script>
+let MODEL = null;
+let vocabIdx = {};
+
+function tokenize(text) {
+  // sklearn default: lowercase + (?u)\b\w\w+\b ; corpus is ASCII so \w matches
+  return (text.toLowerCase().match(/\b\w\w+\b/g) || []);
+}
+
+function predictProba(text) {
+  const counts = new Map();
+  for (const f of tokenize(text)) {
+    if (f in vocabIdx) counts.set(vocabIdx[f], (counts.get(vocabIdx[f]) || 0) + 1);
+  }
+  let norm = 0;
+  const vals = [];
+  for (const [j, c] of counts) {
+    const v = (1 + Math.log(c)) * MODEL.idf[j];   // sublinear tf, smooth idf
+    vals.push([j, v]); norm += v * v;
+  }
+  norm = Math.sqrt(norm);
+  if (norm > 0) for (const p of vals) p[1] /= norm;   // l2 norm
+  const jll = MODEL.class_log_prior.slice();
+  for (let c = 0; c < jll.length; c++)
+    for (const [j, v] of vals) jll[c] += v * MODEL.feature_log_prob[c][j];
+  const m = Math.max(...jll);
+  const e = jll.map(x => Math.exp(x - m));
+  const s = e.reduce((a, b) => a + b, 0);
+  return e.map(x => x / s);
+}
+
+function classify() {
+  if (!MODEL) { alert("Model is still loading — try again in a second."); return; }
+  const text = document.getElementById("hl").value.trim();
+  if (!text) { alert("Type a headline first."); return; }
+  const probs = predictProba(text);
+  const order = probs.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]);
+  document.getElementById("pred").textContent = "→ " + MODEL.classes[order[0][1]];
+  const bars = document.getElementById("bars");
+  bars.innerHTML = "";
+  order.forEach(([p, i]) => {
+    const row = document.createElement("div");
+    row.className = "prow";
+    row.innerHTML = `<span class="lbl">${MODEL.classes[i]}</span>
+      <span class="barw"><span class="fill" style="width:${(p * 100).toFixed(1)}%"></span></span>
+      <span class="p">${(p * 100).toFixed(1)}%</span>`;
+    bars.appendChild(row);
+  });
+  document.getElementById("results").style.display = "block";
+  document.getElementById("results").scrollIntoView({ behavior: "smooth" });
+}
+
+document.getElementById("go").addEventListener("click", classify);
+document.getElementById("hl").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); classify(); }
+});
+document.querySelectorAll(".ghost").forEach(b => {
+  b.addEventListener("click", () => {
+    document.getElementById("hl").value = b.getAttribute("data-h");
+    classify();
+  });
+});
+
+fetch("model.json").then(r => r.json()).then(m => {
+  MODEL = m;
+  m.vocabulary.forEach((t, i) => { vocabIdx[t] = i; });
+}).catch(() => {});
+</script>
+</body>
+</html>
